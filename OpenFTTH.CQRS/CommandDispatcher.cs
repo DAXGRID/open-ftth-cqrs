@@ -2,12 +2,15 @@
 using Microsoft.Extensions.Logging;
 using OpenFTTH.EventSourcing;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace OpenFTTH.CQRS
 {
     public class CommandDispatcher : ICommandDispatcher
     {
+        private readonly static SemaphoreSlim _semaphoreSlim = new SemaphoreSlim(1);
+
         private readonly ILogger<CommandDispatcher> _logger;
         private readonly IServiceProvider _serviceProvider;
         private readonly IEventStore _eventStore;
@@ -26,12 +29,27 @@ namespace OpenFTTH.CQRS
 
             try
             {
-                var cmdResult = await service.HandleAsync(command);
+                TResult cmdResult = default(TResult);
+
+                try
+                {
+                    await _semaphoreSlim.WaitAsync();
+                    cmdResult = await service.HandleAsync(command);
+                }
+                catch (Exception)
+                {
+                    // Rethrow the exception, we want this try catch finally to make sure the sempahoreslim is released in case of failure.
+                    throw;
+                }
+                finally
+                {
+                    _semaphoreSlim.Release();
+                }
 
                 if (command is BaseCommand baseCommand && cmdResult is Result result)
                 {
                     if (baseCommand.CorrelationId == Guid.Empty)
-                        _logger.LogError($"{ typeof(TCommand).Name } command has empty correlation id. Please make sure all initated commands has a correlation id set.");
+                        _logger.LogError($"{typeof(TCommand).Name} command has empty correlation id. Please make sure all initated commands has a correlation id set.");
 
 
                     string atNode = "";
@@ -42,13 +60,13 @@ namespace OpenFTTH.CQRS
                     {
                         foreach (var error in result.Errors)
                         {
-                            _logger.LogWarning($"{ typeof(TCommand).Name } command with id {baseCommand.CmdId}, correlation id: {baseCommand.CorrelationId}, invoked by user: '{baseCommand.UserContext?.UserName}',{atNode} failed with message: {error.Message}");
+                            _logger.LogWarning($"{typeof(TCommand).Name} command with id {baseCommand.CmdId}, correlation id: {baseCommand.CorrelationId}, invoked by user: '{baseCommand.UserContext?.UserName}',{atNode} failed with message: {error.Message}");
                         }
                     }
                     else
                     {
 
-                        _logger.LogInformation($"{ typeof(TCommand).Name } command with id {baseCommand.CmdId}, correlation id: {baseCommand.CorrelationId}, invoked by user: '{baseCommand.UserContext?.UserName}',{atNode} was successfully processed.");
+                        _logger.LogInformation($"{typeof(TCommand).Name} command with id {baseCommand.CmdId}, correlation id: {baseCommand.CorrelationId}, invoked by user: '{baseCommand.UserContext?.UserName}',{atNode} was successfully processed.");
                     }
 
                     // Store command in event store
