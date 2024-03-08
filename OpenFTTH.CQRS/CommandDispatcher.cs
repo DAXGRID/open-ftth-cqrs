@@ -15,11 +15,14 @@ namespace OpenFTTH.CQRS
         private readonly IServiceProvider _serviceProvider;
         private readonly IEventStore _eventStore;
 
-        public CommandDispatcher(ILogger<CommandDispatcher> logger, IServiceProvider serviceProvider, IEventStore eventStore)
+        private readonly bool _diableCommandLogging;
+
+        public CommandDispatcher(ILogger<CommandDispatcher> logger, IServiceProvider serviceProvider, IEventStore eventStore, bool diableCommandLogging = false)
         {
             _logger = logger;
             _serviceProvider = serviceProvider;
             _eventStore = eventStore;
+            _diableCommandLogging = diableCommandLogging;
         }
 
         public async Task<TResult> HandleAsync<TCommand, TResult>(TCommand command) where TCommand : ICommand<TResult>
@@ -70,7 +73,7 @@ namespace OpenFTTH.CQRS
                     }
 
                     // Store command in event store
-                    if (_eventStore != null)
+                    if (_eventStore != null && !_diableCommandLogging)
                     {
                         var cmdLogEntry = new CommandLogEntry(baseCommand.CmdId, command, result);
                         _eventStore.CommandLog.Store(cmdLogEntry);
