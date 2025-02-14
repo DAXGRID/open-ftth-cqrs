@@ -71,13 +71,6 @@ namespace OpenFTTH.CQRS
 
                         _logger.LogInformation($"{typeof(TCommand).Name} command with id {baseCommand.CmdId}, correlation id: {baseCommand.CorrelationId}, invoked by user: '{baseCommand.UserContext?.UserName}',{atNode} was successfully processed.");
                     }
-
-                    // Store command in event store
-                    if (_eventStore != null && !_diableCommandLogging)
-                    {
-                        var cmdLogEntry = new CommandLogEntry(baseCommand.CmdId, command, result);
-                        _eventStore.CommandLog.Store(cmdLogEntry);
-                    }
                 }
 
                 return cmdResult;
