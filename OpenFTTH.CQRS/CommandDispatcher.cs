@@ -1,4 +1,4 @@
-﻿using FluentResults;
+﻿using OpenFTTH.Results;
 using Microsoft.Extensions.Logging;
 using OpenFTTH.EventSourcing;
 using System;
